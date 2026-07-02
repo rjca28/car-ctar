@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPN · Gerador de Minutas de Admissão — CAR Jamor / CTAR Coimbra</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#042C53; --blue:#185FA5; --gold:#BA7517;
+    --canvas:#eef2f7; --paper:#ffffff; --ink:#1c2733; --muted:#5b6b7d;
+    --line:#d7e0ea; --line-soft:#e8eef4; --ok:#1a7a4c; --warn:#9a5b00; --warn-bg:#fdf3df; --err:#a12a2a; --err-bg:#fbe9e9;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:Arial,Helvetica,"Segoe UI",sans-serif;color:var(--ink);background:var(--canvas);line-height:1.5}
+  a{color:var(--blue)}
+  /* header */
+  header.app{background:var(--navy);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .brand{display:flex;align-items:baseline;gap:10px}
+  .brand .fpn{font-weight:800;letter-spacing:.14em;font-size:20px}
+  .brand .np{font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:#9db8d4}
+  header.app h1{font-size:14px;font-weight:600;margin:0;padding-left:16px;border-left:1px solid #29496b;color:#dbe6f2}
+  .steps{margin-left:auto;display:flex;gap:8px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#9db8d4}
+  .steps b{color:#fff}
+  /* layout */
+  .wrap{display:grid;grid-template-columns:390px 1fr;gap:22px;padding:22px;max-width:1280px;margin:0 auto;align-items:start}
+  @media(max-width:900px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:10px}
+  .panel .hd{padding:12px 16px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:8px}
+  .eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:700}
+  .panel .hd h2{margin:0;font-size:14px;color:var(--navy)}
+  .bd{padding:16px}
+  /* dropzone */
+  #drop{border:1.5px dashed #b7c8db;border-radius:10px;background:#f7fafd;padding:22px 16px;text-align:center;cursor:pointer;transition:.15s}
+  #drop:hover,#drop.drag{border-color:var(--blue);background:#eef5fc}
+  #drop .big{font-size:34px;line-height:1;color:var(--blue)}
+  #drop p{margin:8px 0 2px;font-weight:600;color:var(--navy)}
+  #drop small{color:var(--muted)}
+  .loaded{margin-top:12px;font-size:13px;color:var(--ok);display:none;align-items:center;gap:8px}
+  .loaded.on{display:flex}
+  /* fields */
+  label.f{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 4px;font-weight:700}
+  select,input[type=text]{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink)}
+  select:focus,input:focus,textarea:focus{outline:2px solid #bcd6f2;border-color:var(--blue)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .search{margin-bottom:6px}
+  .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+  /* flags */
+  .flags{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .flag{font-size:12.5px;padding:8px 10px;border-radius:7px;border:1px solid;display:flex;gap:8px;align-items:flex-start}
+  .flag.warn{background:var(--warn-bg);border-color:#eccf8e;color:#6b451a}
+  .flag.err{background:var(--err-bg);border-color:#e8b4b4;color:#7c2020}
+  .flag.ok{background:#eaf6ef;border-color:#bfe3cd;color:#1a5c39}
+  .flag b{white-space:nowrap}
+  /* letter */
+  .sheetwrap{position:sticky;top:16px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  button.btn{font-family:inherit;font-size:13px;font-weight:600;border-radius:7px;padding:9px 13px;border:1px solid var(--blue);background:var(--blue);color:#fff;cursor:pointer;transition:.12s}
+  button.btn:hover{background:#124b84}
+  button.btn.ghost{background:#fff;color:var(--blue)}
+  button.btn.ghost:hover{background:#eef5fc}
+  button.btn.gold{background:var(--gold);border-color:var(--gold)}
+  button.btn.gold:hover{background:#9c6112}
+  button.btn:disabled{opacity:.45;cursor:not-allowed}
+  .sheet{background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(4,44,83,.10);overflow:hidden}
+  .sheet .stripe{height:8px;background:linear-gradient(90deg,var(--navy),var(--blue))}
+  .letter{padding:34px 40px;font-family:Calibri,Arial,sans-serif;color:#20303f;font-size:14.5px}
+  @media(max-width:520px){.letter{padding:24px 22px}}
+  .letter .lh{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--line-soft);padding-bottom:12px;margin-bottom:18px}
+  .letter .lh .fpn{font-weight:800;letter-spacing:.14em;color:var(--navy);font-size:18px}
+  .letter .lh .sub{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold)}
+  .letter .subj{font-size:12px;color:var(--muted);margin-bottom:14px}
+  .letter .subj b{color:var(--navy)}
+  #bodyEdit{width:100%;min-height:640px;border:1px dashed transparent;border-radius:6px;font-family:Calibri,Arial,sans-serif;font-size:14.5px;line-height:1.55;color:#20303f;background:transparent;resize:vertical;padding:2px}
+  #bodyEdit:hover{border-color:#e3ebf3}
+  .empty{padding:60px 30px;text-align:center;color:var(--muted)}
+  .empty .big{font-size:40px;color:#c3d2e2}
+  .to{font-size:13px;color:var(--muted);margin-bottom:12px}
+  .to b{color:var(--ink)}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:50}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .counter{font-size:11px;color:var(--muted);margin-left:auto}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="brand"><span class="fpn">FPN</span><span class="np">Natação Pura</span></div>
+  <h1>Gerador de Minutas de Admissão · CAR Jamor / CTAR Coimbra</h1>
+  <div class="steps"><span id="s1"><b>1</b> Carregar</span><span id="s2">2 Escolher</span><span id="s3">3 Enviar</span></div>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: controls -->
+  <section class="panel">
+    <div class="hd"><span class="eyebrow">Passo 1–2</span><h2>Ficheiro e nadador</h2></div>
+    <div class="bd">
+      <div id="drop">
+        <div class="big">⬆</div>
+        <p>Carregar ficheiro de candidaturas</p>
+        <small>Arraste para aqui ou clique — .xlsx (folha «Candidaturas»)</small>
+        <input id="file" type="file" accept=".xlsx,.xls" hidden>
+      </div>
+      <div class="loaded" id="loaded"><span>✓</span><span id="loadedTxt"></span></div>
+
+      <div id="picker" style="display:none">
+        <label class="f" for="search">Procurar nadador</label>
+        <input id="search" class="search" type="text" placeholder="Escrever nome, clube ou centro…">
+        <label class="f" for="sel">Nadador candidato</label>
+        <select id="sel"><option value="">— selecionar —</option></select>
+
+        <label class="f" for="lvl">Nível de integração atribuído</label>
+        <select id="lvl">
+          <option value="">— selecionar —</option>
+          <option>Projeto Olímpico/Esperanças</option>
+          <option>Praticantes de Alto Rendimento Nível A</option>
+          <option>Praticantes de Alto Rendimento Nível B</option>
+          <option>Praticantes de Alto Rendimento Nível C</option>
+          <option>Projetos Especiais de Preparação ou Seleção Nacional</option>
+          <option>Jovens Talentos ou outros</option>
+          <option>Nadadores Estrangeiros</option>
+        </select>
+
+        <div class="row2">
+          <div>
+            <label class="f" for="reg">Regime</label>
+            <select id="reg"><option>Externo</option><option>Interno</option></select>
+          </div>
+          <div>
+            <label class="f" for="val">Valor mensal</label>
+            <input id="val" type="text" placeholder="—">
+          </div>
+        </div>
+        <p class="hint">O valor é calculado a partir da tabela do regulamento (nível × regime). Pode ajustar qualquer campo antes de enviar.</p>
+
+        <div class="flags" id="flags"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: letter -->
+  <section>
+    <div class="sheetwrap">
+      <div class="toolbar">
+        <button class="btn gold" id="btnMail" disabled>Abrir no email</button>
+        <button class="btn" id="btnBody" disabled>Copiar corpo</button>
+        <button class="btn ghost" id="btnSubj" disabled>Copiar assunto</button>
+        <button class="btn ghost" id="btnTo" disabled>Copiar destinatário</button>
+        <span class="counter" id="counter"></span>
+      </div>
+      <div class="sheet">
+        <div class="stripe"></div>
+        <div class="letter">
+          <div class="lh"><span class="fpn">FPN</span><span class="sub">Federação Portuguesa de Natação</span></div>
+          <div id="letterInner">
+            <div class="empty"><div class="big">✉</div><p>Carregue o ficheiro e escolha um nadador para gerar a minuta.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+let SWIMMERS = [], FIN = {}, current = null;
+
+// financing fallback (from regulation) — categoria: [intMes,intAno,extMes,extAno]
+const FIN_FALLBACK = {
+  "Projeto Olímpico/Esperanças / PAR Nível A":[0,0,0,0],
+  "PAR Nível B":[350,3850,100,1100],
+  "PAR Nível C":[400,4400,125,1375],
+  "Projetos Especiais / Seleção Nacional":[450,4950,150,1650],
+  "Jovem Talento":[500,5500,175,1925],
+  "Nadadores Estrangeiros":[1000,11000,350,3850]
+};
+// official level -> financing categoria
+const LVL2CAT = {
+  "Projeto Olímpico/Esperanças":"Projeto Olímpico/Esperanças / PAR Nível A",
+  "Praticantes de Alto Rendimento Nível A":"Projeto Olímpico/Esperanças / PAR Nível A",
+  "Praticantes de Alto Rendimento Nível B":"PAR Nível B",
+  "Praticantes de Alto Rendimento Nível C":"PAR Nível C",
+  "Projetos Especiais de Preparação ou Seleção Nacional":"Projetos Especiais / Seleção Nacional",
+  "Jovens Talentos ou outros":"Jovem Talento",
+  "Nadadores Estrangeiros":"Nadadores Estrangeiros"
+};
+// sheet categoria -> default official level for the dropdown
+const CAT2LVL = {
+  "Projeto Olímpico/Esperanças / PAR Nível A":"Projeto Olímpico/Esperanças",
+  "PAR Nível B":"Praticantes de Alto Rendimento Nível B",
+  "PAR Nível C":"Praticantes de Alto Rendimento Nível C",
+  "Projetos Especiais / Seleção Nacional":"Projetos Especiais de Preparação ou Seleção Nacional",
+  "Jovem Talento":"Jovens Talentos ou outros",
+  "Nadadores Estrangeiros":"Nadadores Estrangeiros"
+};
+
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1600);}
+
+// ---------- file handling ----------
+const drop=$("#drop"), fileInput=$("#file");
+drop.addEventListener("click",()=>fileInput.click());
+["dragenter","dragover"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add("drag");}));
+["dragleave","drop"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove("drag");}));
+drop.addEventListener("drop",ev=>{if(ev.dataTransfer.files[0])readFile(ev.dataTransfer.files[0]);});
+fileInput.addEventListener("change",e=>{if(e.target.files[0])readFile(e.target.files[0]);});
+
+function readFile(file){
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+      parseFinance(wb);
+      parseSwimmers(wb);
+    }catch(err){ toast("Não foi possível ler o ficheiro."); console.error(err); }
+  };
+  r.readAsArrayBuffer(file);
+}
+
+function parseFinance(wb){
+  FIN=Object.assign({},FIN_FALLBACK);
+  const sh=wb.Sheets["Financiamento"]; if(!sh) return;
+  const a=XLSX.utils.sheet_to_json(sh,{header:1});
+  a.slice(1).forEach(r=>{ if(r&&r[0]) FIN[String(r[0]).trim()]=[num(r[1]),num(r[2]),num(r[3]),num(r[4])]; });
+}
+function num(x){const n=parseFloat(x);return isNaN(n)?0:n;}
+
+function parseSwimmers(wb){
+  const sh=wb.Sheets["Candidaturas"]||wb.Sheets[wb.SheetNames[0]];
+  const a=XLSX.utils.sheet_to_json(sh,{header:1,defval:""});
+  // header on row index 1 (row 2); data from index 2
+  SWIMMERS=[];
+  for(let i=2;i<a.length;i++){
+    const r=a[i]; if(!r||!String(r[0]).trim()) continue;
+    SWIMMERS.push({
+      nome:String(r[0]).trim(), nasc:String(r[1]||"").trim(), email:String(r[6]||"").trim(),
+      clube:String(r[9]||"").trim(), nivelText:String(r[13]||"").trim(),
+      centro:String(r[16]||"").trim(), regime:String(r[17]||"").trim(),
+      categoria:String(r[18]||"").trim(), obs:String(r[22]||"").trim(), exame:String(r[12]||"").trim()
+    });
+  }
+  $("#loaded").classList.add("on");
+  $("#loadedTxt").textContent=SWIMMERS.length+" candidatos carregados · "+file_short();
+  $("#picker").style.display="block";
+  buildSelect(SWIMMERS);
+  $("#s1").innerHTML="✓ Carregar"; $("#s2").innerHTML="<b>2</b> Escolher";
+  $("#counter").textContent=SWIMMERS.length+" candidatos";
+}
+let _fname="";
+function file_short(){return _fname;}
+fileInput.addEventListener("change",e=>{_fname=e.target.files[0]?.name||"";});
+drop.addEventListener("drop",ev=>{_fname=ev.dataTransfer.files[0]?.name||"";});
+
+function buildSelect(list){
+  const sel=$("#sel"); sel.innerHTML='<option value="">— selecionar —</option>';
+  list.forEach((s,i)=>{
+    const realIdx=SWIMMERS.indexOf(s);
+    const o=document.createElement("option"); o.value=realIdx;
+    o.textContent=s.nome+"  ·  "+(s.centro||"?");
+    sel.appendChild(o);
+  });
+}
+
+// search filter
+$("#search").addEventListener("input",e=>{
+  const q=e.target.value.toLowerCase();
+  buildSelect(SWIMMERS.filter(s=>(s.nome+" "+s.clube+" "+s.centro).toLowerCase().includes(q)));
+});
+
+// ---------- selection ----------
+$("#sel").addEventListener("change",e=>{
+  const idx=e.target.value; if(idx===""){current=null;renderEmpty();return;}
+  current=SWIMMERS[+idx];
+  // seed level + regime from sheet
+  $("#lvl").value = CAT2LVL[current.categoria] || "";
+  $("#reg").value = (current.centro.toLowerCase().includes("coimbra")) ? "Externo" : (current.regime||"Externo");
+  recomputeValue();
+  render();
+});
+$("#lvl").addEventListener("change",()=>{recomputeValue();render();});
+$("#reg").addEventListener("change",()=>{recomputeValue();render();});
+$("#val").addEventListener("input",render);
+
+function recomputeValue(){
+  const lvl=$("#lvl").value, reg=$("#reg").value;
+  const cat=LVL2CAT[lvl];
+  if(!cat){ $("#val").value="a determinar"; return; }
+  const t=FIN[cat]||FIN_FALLBACK[cat];
+  const v = reg==="Interno" ? t[0] : t[2];
+  $("#val").value = v===0 ? "Isento" : fmtEur(v);
+}
+function fmtEur(v){return Number(v).toLocaleString("pt-PT",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";}
+
+// ---------- rendering the letter ----------
+function centreFull(c){
+  return c.toLowerCase().includes("jamor")
+    ? "Centro de Alto Rendimento do Jamor (CAR)"
+    : "Centro de Treino de Alto Rendimento de Coimbra (CTAR)";
+}
+function centreShort(c){return c.toLowerCase().includes("jamor")?"CAR Jamor":"CTAR Coimbra";}
+function regimeParagraph(reg){
+  return reg==="Interno"
+   ? "Regime de Interno: Inclui o acesso completo ao plano de treinos, acompanhamento escolar e serviços de apoio, bem como alojamento e alimentação na Residência."
+   : "Regime de Externo: Inclui o acesso completo ao plano de treinos, acompanhamento escolar e serviços de apoio, sem incluir alojamento e alimentação.";
+}
+function ageFrom(iso){
+  const d=new Date(iso); if(isNaN(d)) return null;
+  const t=new Date(); let a=t.getFullYear()-d.getFullYear();
+  const m=t.getMonth()-d.getMonth(); if(m<0||(m===0&&t.getDate()<d.getDate())) a--;
+  return a;
+}
+
+function subjectFor(s){ return "Admissão – Candidatura "+centreShort(s.centro)+" (Época 2025/26)"; }
+
+function bodyFor(s){
+  const lvl=$("#lvl").value||"[nível de integração]";
+  const reg=$("#reg").value;
+  const val=$("#val").value||"—";
+  const valLine = (val==="Isento") ? "Valor Mensal: Isento" : ("Valor Mensal: "+val);
+  return `Exmo(a). Sr(a). Atleta, ${s.nome},
+
+Em nome da Federação Portuguesa de Natação, acusamos a receção da sua candidatura para integração no ${centreFull(s.centro)} / FPN, a qual foi analisada pela nossa Direção Técnica Nacional.
+
+Temos o prazer de comunicar que a sua candidatura foi aceite.
+
+Com base na avaliação do seu percurso e potencial, foi-lhe atribuído o Nível de Integração ${lvl}.
+
+Conforme a sua preferência e o regulamento em vigor, poderá ser integrado(a) no seguinte regime:
+
+${regimeParagraph(reg)}
+${valLine}
+
+O período de apresentação das candidaturas de praticantes desportivos ao ${centreFull(s.centro)}, para a época letiva/desportiva 2025/26, decorre entre 21 de julho e 21 de agosto. Os documentos deverão ser reencaminhados para daniel.moedas@fpnatacao.pt, com cc/ secretaria@fpnatacao.pt.
+
+Aceda aos documentos de candidatura através dos seguintes links de acesso:
+
+• Ficha de Candidatura da Federação (https://acrobat.adobe.com/id/urn:aaid:sc:EU:0e62e417-8fa6-44f1-a769-899e60843e9b) — lista ordenada dos praticantes candidatos, por prioridade de admissão e critérios definidos pela Federação;
+• Ficha de Candidatura do Atleta (https://acrobat.adobe.com/id/urn:aaid:sc:EU:be18b8da-eb6b-4de8-ad68-1b56c1180f73) — informação pessoal, desportiva e académica de cada praticante candidato;
+• Certificado de Aproveitamento (comprovativo de frequência escolar/formativa) ou Ficha ENES relativos à época/ano 2024/25;
+• Termo de Responsabilidade de Integração do Praticante Desportivo 2025/26 (https://acrobat.adobe.com/id/urn:aaid:sc:EU:714034b9-1975-41ac-880f-153648c6052c) — assinado pela Federação e pelo praticante candidato / Encarregado de Educação;
+• Regulamento Interno da Residência (https://acrobat.adobe.com/id/urn:aaid:sc:EU:82ff6b9a-2883-4f04-aab0-c58ab4282fbf) — certifique-se de que compreendeu tudo antes de aceitar as condições de permanência, através da assinatura no Termo de Responsabilidade de Integração do Praticante Desportivo 2025/26.
+
+Agradecemos o seu interesse e contacto.
+
+Com os melhores cumprimentos,
+
+Ricardo Antunes
+Diretor Técnico Nacional
+Federação Portuguesa de Natação`;
+}
+
+function renderEmpty(){
+  $("#letterInner").innerHTML='<div class="empty"><div class="big">✉</div><p>Escolha um nadador para gerar a minuta.</p></div>';
+  ["#btnMail","#btnBody","#btnSubj","#btnTo"].forEach(b=>$(b).disabled=true);
+  $("#flags").innerHTML="";
+}
+
+function render(){
+  const s=current; if(!s){renderEmpty();return;}
+  const subj=subjectFor(s), body=bodyFor(s);
+  $("#letterInner").innerHTML=
+    `<div class="to">Para: <b>${s.email||"(sem email)"}</b></div>
+     <div class="subj">Assunto: <b>${subj}</b></div>
+     <textarea id="bodyEdit" spellcheck="false"></textarea>`;
+  $("#bodyEdit").value=body;
+  $("#bodyEdit").addEventListener("input",()=>{});
+  ["#btnMail","#btnBody","#btnSubj","#btnTo"].forEach(b=>$(b).disabled=false);
+  $("#s3").innerHTML="<b>3</b> Enviar";
+  renderFlags(s);
+}
+
+function renderFlags(s){
+  const f=$("#flags"); f.innerHTML="";
+  const add=(cls,label,txt)=>{const d=document.createElement("div");d.className="flag "+cls;d.innerHTML=`<b>${label}</b><span>${txt}</span>`;f.appendChild(d);};
+  const age=ageFrom(s.nasc);
+  if(age!==null && age<18) add("warn","Menor:",`atleta com ${age} anos — a assinatura do Encarregado de Educação é obrigatória; considere enviar também para o email do E.E.`);
+  if(/caducad/i.test(s.exame)||/caducad/i.test(s.obs)) add("err","Exame médico:","exame desportivo caducado — pedir renovação antes da integração.");
+  if($("#val").value==="a determinar"||!$("#lvl").value) add("warn","Nível:","defina o nível de integração para calcular o valor mensal.");
+  if(s.centro.toLowerCase().includes("coimbra")) add("ok","CTAR Coimbra:","regime externo (sem residência). Os pontos sobre Residência aplicam-se sobretudo ao CAR Jamor — reveja antes de enviar.");
+  if(!s.email) add("err","Sem email:","este candidato não tem email na grelha — preencha antes de enviar.");
+}
+
+// ---------- actions ----------
+function copy(txt,msg){navigator.clipboard.writeText(txt).then(()=>toast(msg)).catch(()=>{
+  const t=document.createElement("textarea");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");t.remove();toast(msg);
+});}
+$("#btnBody").addEventListener("click",()=>copy($("#bodyEdit").value,"Corpo copiado"));
+$("#btnSubj").addEventListener("click",()=>copy(subjectFor(current),"Assunto copiado"));
+$("#btnTo").addEventListener("click",()=>copy(current.email||"","Destinatário copiado"));
+$("#btnMail").addEventListener("click",()=>{
+  const s=current;
+  const url="mailto:"+encodeURIComponent(s.email||"")+"?subject="+encodeURIComponent(subjectFor(s))+"&body="+encodeURIComponent($("#bodyEdit").value);
+  window.location.href=url;
+});
+</script>
+</body>
+</html>
